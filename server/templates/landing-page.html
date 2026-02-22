@@ -1,459 +1,336 @@
 <!doctype html>
-<html>
+<html lang="ja">
   <head>
-    <title>APP_NAME_PLACEHOLDER</title>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>UV Info - 紫外線情報</title>
+    <meta name="description" content="日本全国の紫外線照射時間情報（ビタミンD生成・紅斑紫外線量）" />
+    <meta name="theme-color" content="#0A1628" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="UV Info" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/pwa-icons/icon-192.png" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
     <style>
-      * {
-        box-sizing: border-box;
+      *{box-sizing:border-box;margin:0;padding:0}
+      :root{
+        --bg:#0A1628;--card:#131E33;--border:#1E2D45;--text:#F0F4FA;
+        --text2:#8BA4C7;--muted:#5A7499;--primary:#F5A623;
+        --green:#4CD964;--orange:#F5A623;--yellow:#FFB84D;--blue:#8BA4C7;
+        --red:#FF4444;--navy:#0D1A30;
       }
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        margin: 0;
-        padding: 32px 20px;
-        text-align: center;
-        background: #fff;
-        color: #222;
-        line-height: 1.5;
-        min-height: 100vh;
+      body{
+        font-family:'Noto Sans JP',system-ui,sans-serif;background:var(--bg);color:var(--text);
+        min-height:100vh;min-height:100dvh;padding:0;overflow-x:hidden;
       }
-      .wrapper {
-        max-width: 480px;
-        margin: 0 auto;
+      .app{max-width:480px;margin:0 auto;padding:env(safe-area-inset-top,20px) 20px env(safe-area-inset-bottom,20px)}
+      .header{padding:24px 0 8px}
+      .title-row{display:flex;justify-content:space-between;align-items:flex-start}
+      .app-title{font-size:28px;font-weight:700;color:var(--text)}
+      .app-subtitle{font-size:13px;color:var(--text2);margin-top:2px}
+      .station-info{display:flex;align-items:center;gap:6px;margin-top:16px}
+      .station-name{font-size:20px;font-weight:700;color:var(--text)}
+      .station-pref{font-size:14px;color:var(--text2)}
+      .fav-btn{background:none;border:none;cursor:pointer;padding:8px;color:var(--muted);font-size:24px;transition:color .2s}
+      .fav-btn.active{color:var(--primary)}
+      .selector{margin-bottom:16px}
+      .selector-title{font-size:13px;font-weight:500;color:var(--text2);margin-bottom:10px;letter-spacing:1px}
+      .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+      .chips::-webkit-scrollbar{display:none}
+      .chip{
+        flex-shrink:0;padding:10px 16px;border-radius:20px;background:var(--card);
+        border:1px solid var(--border);cursor:pointer;text-align:center;transition:all .2s;
+        -webkit-tap-highlight-color:transparent;
       }
-      h1 {
-        font-size: 26px;
-        font-weight: 600;
-        margin: 0;
-        color: #111;
+      .chip.active{background:var(--primary);border-color:var(--primary)}
+      .chip-name{font-size:14px;font-weight:500;color:var(--text)}
+      .chip.active .chip-name{color:var(--bg)}
+      .chip-pref{font-size:10px;color:var(--muted);margin-top:2px}
+      .chip.active .chip-pref{color:rgba(10,22,40,.6)}
+      .toggle{display:flex;background:var(--card);border-radius:16px;padding:4px;margin-bottom:20px}
+      .toggle-btn{
+        flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+        padding:12px;border-radius:12px;border:none;cursor:pointer;
+        font-size:13px;font-weight:500;color:var(--text2);background:none;
+        font-family:inherit;transition:all .2s;-webkit-tap-highlight-color:transparent;
       }
-      .subtitle {
-        font-size: 15px;
-        color: #666;
-        margin-top: 8px;
-        margin-bottom: 32px;
+      .toggle-btn.active{background:var(--primary);color:var(--bg)}
+      .card{border-radius:20px;overflow:hidden;border:1px solid var(--border);margin-bottom:16px;position:relative}
+      .card-bg{position:absolute;inset:0}
+      .accent-bar{height:3px;width:100%}
+      .card-content{position:relative;padding:20px}
+      .card-header{display:flex;justify-content:space-between;margin-bottom:20px}
+      .card-meta{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2)}
+      .main-data{display:flex;align-items:center}
+      .data-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px}
+      .icon-circle{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:4px;font-size:28px}
+      .section-label{font-size:12px;font-weight:700;color:var(--text);text-align:center}
+      .section-sub{font-size:10px;color:var(--muted);text-align:center}
+      .minutes-row{display:flex;align-items:baseline;gap:4px}
+      .minutes-val{font-size:40px;font-weight:700}
+      .minutes-unit{font-size:16px;font-weight:500}
+      .level-badge{padding:4px 12px;border-radius:12px;font-size:11px;font-weight:500}
+      .divider{width:1px;height:80%;background:var(--border);margin:0 12px;align-self:center}
+      .extra-row{display:flex;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);align-items:center}
+      .extra-item{flex:1;text-align:center}
+      .extra-label{font-size:10px;color:var(--muted)}
+      .extra-val{font-size:14px;font-weight:500;color:var(--text2);margin-top:4px}
+      .extra-div{width:1px;height:30px;background:var(--border)}
+      .info{background:var(--card);border-radius:16px;padding:16px;border:1px solid var(--border);margin-bottom:16px}
+      .info-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+      .info-title{font-size:14px;font-weight:700;color:var(--text)}
+      .info-text{font-size:12px;color:var(--text2);line-height:20px}
+      .info-source{font-size:10px;color:var(--muted);margin-top:10px}
+      .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 0;gap:16px}
+      .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+      @keyframes spin{to{transform:rotate(360deg)}}
+      .loading-text{font-size:14px;color:var(--text2)}
+      .error-box{text-align:center;padding:60px 0}
+      .error-icon{font-size:48px;margin-bottom:12px}
+      .error-text{font-size:15px;font-weight:500;color:var(--text2);margin-bottom:16px}
+      .retry-btn{
+        display:inline-flex;align-items:center;gap:8px;padding:10px 20px;
+        background:var(--card);border-radius:20px;border:none;cursor:pointer;
+        font-size:14px;font-weight:500;color:var(--text);font-family:inherit;
       }
-      .loading {
-        display: none;
-        margin: 60px 0;
+      .install-banner{
+        display:none;position:fixed;bottom:0;left:0;right:0;
+        background:var(--card);border-top:1px solid var(--border);
+        padding:16px 20px env(safe-area-inset-bottom,16px);
+        z-index:100;
       }
-      .spinner {
-        border: 2px solid #ddd;
-        border-top-color: #333;
-        border-radius: 50%;
-        width: 32px;
-        height: 32px;
-        animation: spin 0.8s linear infinite;
-        margin: 20px auto;
+      .install-banner.show{display:flex;align-items:center;gap:12px}
+      .install-banner-text{flex:1;font-size:14px;color:var(--text)}
+      .install-banner-sub{font-size:11px;color:var(--text2)}
+      .install-btn{
+        padding:10px 20px;background:var(--primary);border:none;border-radius:12px;
+        font-size:14px;font-weight:700;color:var(--bg);cursor:pointer;font-family:inherit;
+        white-space:nowrap;
       }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-      .loading-text {
-        font-size: 16px;
-        color: #444;
-      }
-      .content {
-        display: block;
-      }
-
-      .steps-container {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-      }
-
-      .step {
-        padding: 24px;
-        border: 1px solid #ddd;
-        border-radius: 12px;
-        text-align: center;
-        background: #fafafa;
-      }
-      .step-header {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        margin-bottom: 12px;
-      }
-      .step-number {
-        width: 28px;
-        height: 28px;
-        border: 1px solid #999;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 600;
-        font-size: 14px;
-        flex-shrink: 0;
-        color: #555;
-      }
-      .step-title {
-        font-size: 18px;
-        font-weight: 600;
-        margin: 0;
-        color: #222;
-      }
-      .step-description {
-        font-size: 14px;
-        margin-bottom: 16px;
-        color: #666;
-      }
-
-      .store-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        justify-content: center;
-        flex-wrap: wrap;
-      }
-      .store-button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        padding: 12px 20px;
-        font-size: 14px;
-        font-weight: 500;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        text-decoration: none;
-        color: #333;
-        background: #fff;
-        transition: all 0.15s;
-      }
-      .store-button:hover {
-        background: #f5f5f5;
-        border-color: #999;
-      }
-      .store-link {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        padding: 8px 0;
-        font-size: 13px;
-        font-weight: 400;
-        text-decoration: underline;
-        text-underline-offset: 2px;
-        color: #666;
-        background: none;
-        border: none;
-        transition: color 0.15s;
-      }
-      .store-link:hover {
-        color: #333;
-      }
-      .store-link .store-icon {
-        width: 14px;
-        height: 14px;
-      }
-      .store-icon {
-        width: 18px;
-        height: 18px;
-      }
-
-      .qr-section {
-        background: #333;
-        color: #fff;
-        border-color: #333;
-      }
-      .qr-section .step-number {
-        border-color: rgba(255, 255, 255, 0.5);
-        color: #fff;
-      }
-      .qr-section .step-title {
-        color: #fff;
-      }
-      .qr-section .step-description {
-        color: rgba(255, 255, 255, 0.7);
-      }
-      .qr-code {
-        width: 180px;
-        height: 180px;
-        margin: 0 auto 16px;
-        background: #fff;
-        border-radius: 8px;
-        padding: 12px;
-      }
-      .qr-code canvas {
-        width: 100%;
-        height: 100%;
-      }
-      .open-button {
-        display: inline-block;
-        padding: 12px 24px;
-        font-size: 14px;
-        font-weight: 500;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 8px;
-        text-decoration: none;
-        color: #333;
-        background: #fff;
-        transition: opacity 0.15s;
-      }
-      .open-button:hover {
-        opacity: 0.9;
-      }
-
-      /* Desktop styles */
-      @media (min-width: 768px) {
-        body {
-          padding: 48px 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .wrapper {
-          max-width: 720px;
-        }
-        h1 {
-          font-size: 32px;
-          margin-bottom: 10px;
-        }
-        .subtitle {
-          font-size: 16px;
-          margin-bottom: 40px;
-        }
-        .steps-container {
-          flex-direction: row;
-          gap: 20px;
-          align-items: stretch;
-        }
-        .step {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          padding: 28px;
-        }
-        .step-description {
-          flex-grow: 1;
-        }
-        .store-buttons {
-          flex-direction: column;
-          gap: 10px;
-        }
-        .qr-code {
-          width: 200px;
-          height: 200px;
-        }
-      }
-
-      /* Large desktop */
-      @media (min-width: 1024px) {
-        .wrapper {
-          max-width: 800px;
-        }
-        h1 {
-          font-size: 36px;
-        }
-        .steps-container {
-          gap: 28px;
-        }
-        .step {
-          padding: 32px;
-        }
-      }
-
-      /* Dark mode */
-      @media (prefers-color-scheme: dark) {
-        body {
-          background: #0d0d0d;
-          color: #e0e0e0;
-        }
-        h1 {
-          color: #f5f5f5;
-        }
-        .subtitle {
-          color: #999;
-        }
-        .spinner {
-          border-color: #444;
-          border-top-color: #ccc;
-        }
-        .loading-text {
-          color: #aaa;
-        }
-        .step {
-          border-color: #333;
-          background: #1a1a1a;
-        }
-        .step-number {
-          border-color: #666;
-          color: #bbb;
-        }
-        .step-title {
-          color: #f0f0f0;
-        }
-        .step-description {
-          color: #888;
-        }
-        .store-button {
-          border-color: #444;
-          color: #e0e0e0;
-          background: #222;
-        }
-        .store-button:hover {
-          background: #2a2a2a;
-          border-color: #666;
-        }
-        .store-link {
-          color: #888;
-        }
-        .store-link:hover {
-          color: #ccc;
-        }
-        .qr-section {
-          background: #111;
-          border-color: #333;
-        }
-        .qr-section .step-number {
-          border-color: rgba(255, 255, 255, 0.4);
-        }
-        .qr-section .step-description {
-          color: rgba(255, 255, 255, 0.6);
-        }
-        .open-button {
-          background: #f0f0f0;
-          color: #111;
-        }
-        .open-button:hover {
-          background: #e0e0e0;
-        }
-      }
+      .dismiss-btn{background:none;border:none;cursor:pointer;color:var(--muted);font-size:20px;padding:4px}
     </style>
   </head>
   <body>
-    <div class="wrapper">
-      <div class="loading" id="loading">
-        <div class="spinner"></div>
-        <div class="loading-text">Opening in Expo Go...</div>
-      </div>
-
-      <div class="content" id="content">
-        <h1>APP_NAME_PLACEHOLDER</h1>
-        <p class="subtitle">Preview this app on your phone</p>
-
-        <div class="steps-container">
-          <div class="step">
-            <div class="step-header">
-              <div class="step-number">1</div>
-              <h2 class="step-title">Download Expo Go</h2>
-            </div>
-            <p class="step-description">
-              Expo Go is a free app to test mobile apps
-            </p>
-            <div class="store-buttons" id="store-buttons">
-              <a
-                id="app-store-btn"
-                href="https://apps.apple.com/app/id982107779"
-                class="store-button"
-                target="_blank"
-              >
-                <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
-                  />
-                </svg>
-                App Store
-              </a>
-              <a
-                id="play-store-btn"
-                href="https://play.google.com/store/apps/details?id=host.exp.exponent"
-                class="store-button"
-                target="_blank"
-              >
-                <svg class="store-icon" viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"
-                  />
-                </svg>
-                Google Play
-              </a>
-            </div>
+    <div class="app" id="app">
+      <div class="header">
+        <div class="title-row">
+          <div>
+            <div class="app-title">UV Info</div>
+            <div class="app-subtitle">紫外線照射時間情報（速報値）</div>
           </div>
-
-          <div class="step qr-section">
-            <div class="step-header">
-              <div class="step-number">2</div>
-              <h2 class="step-title">Scan QR Code</h2>
-            </div>
-            <p class="step-description">Use your phone's camera or Expo Go</p>
-            <div class="qr-code" id="qr-code"></div>
-            <a href="exps://EXPS_URL_PLACEHOLDER" class="open-button"
-              >Open in Expo Go</a
-            >
-          </div>
+          <button class="fav-btn" id="favBtn" onclick="toggleFavorite()">☆</button>
         </div>
+        <div class="station-info" id="stationInfo"></div>
+      </div>
+      <div class="selector">
+        <div class="selector-title">観測局</div>
+        <div class="chips" id="stationChips"></div>
+      </div>
+      <div class="toggle" id="exposureToggle">
+        <button class="toggle-btn active" data-type="faceHands" onclick="setExposure('faceHands')">✋ 顔と手 (600cm²)</button>
+        <button class="toggle-btn" data-type="armsLegs" onclick="setExposure('armsLegs')">🙆 腕と脚も (1200cm²)</button>
+      </div>
+      <div id="dataContainer">
+        <div class="loading"><div class="spinner"></div><div class="loading-text">データを取得中...</div></div>
+      </div>
+      <div class="info">
+        <div class="info-header"><span style="color:var(--primary)">ℹ</span><span class="info-title">データについて</span></div>
+        <div class="info-text">国立環境研究所の観測データに基づき、10µgのビタミンDを生成するために必要な日光照射時間を表示しています。スキンタイプIII（日本人標準）を基準としています。</div>
+        <div class="info-source">出典: 国立環境研究所 ビタミンD生成・紅斑紫外線量情報</div>
       </div>
     </div>
 
-    <script src="https://unpkg.com/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
+    <div class="install-banner" id="installBanner">
+      <div>
+        <div class="install-banner-text">ホーム画面に追加</div>
+        <div class="install-banner-sub">アプリのようにすぐ使えます</div>
+      </div>
+      <button class="install-btn" id="installBtn" onclick="installPWA()">追加</button>
+      <button class="dismiss-btn" onclick="dismissInstall()">✕</button>
+    </div>
+
     <script>
-      (function () {
-        const ua = navigator.userAgent;
-        const loadingEl = document.getElementById("loading");
-        const contentEl = document.getElementById("content");
+    const STATIONS=[
+      {id:"ochiishi",name:"落石岬",pref:"北海道"},{id:"rikubetsu",name:"陸別",pref:"北海道"},
+      {id:"sapporo",name:"札幌",pref:"北海道"},{id:"aomori",name:"青森",pref:"青森県"},
+      {id:"sendai",name:"仙台",pref:"宮城県"},{id:"tsukuba",name:"つくば",pref:"茨城県"},
+      {id:"yokohama",name:"横浜",pref:"神奈川県"},{id:"nagoya",name:"名古屋",pref:"愛知県"},
+      {id:"ootsu",name:"大津",pref:"滋賀県"},{id:"osaka",name:"大阪",pref:"大阪府"},
+      {id:"hateruma",name:"波照間",pref:"沖縄県"}
+    ];
 
-        const isAndroid = /Android/i.test(ua);
-        const isIOS =
-          /iPhone|iPad|iPod/i.test(ua) ||
-          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    let selectedStation=localStorage.getItem('uv_station')||'tsukuba';
+    let favoriteStation=localStorage.getItem('uv_favorite')||null;
+    let exposureType='faceHands';
+    let currentData=null;
+    let deferredPrompt=null;
 
-        const deepLink = "exps://EXPS_URL_PLACEHOLDER";
+    function getLevelInfo(min){
+      if(min===null||min===0)return{label:'データなし',color:'#5A7499',icon:'🌙',grad:['#0D1A30','#0B1525','#0A1628']};
+      if(min<=10)return{label:'短時間でOK',color:'#4CD964',icon:'☀️',grad:['#1A3D1A','#0F2B1A','#0A1628']};
+      if(min<=30)return{label:'適度な日光浴を',color:'#F5A623',icon:'⛅',grad:['#3D2E0A','#2B1F0A','#0A1628']};
+      if(min<=60)return{label:'やや長めに',color:'#FFB84D',icon:'☁️',grad:['#3D3520','#2B2510','#0A1628']};
+      return{label:'60分以上必要',color:'#8BA4C7',icon:'🌥️',grad:['#1A2540','#152035','#0A1628']};
+    }
 
-        // Adjust store buttons based on platform
-        const appStoreBtn = document.getElementById("app-store-btn");
-        const playStoreBtn = document.getElementById("play-store-btn");
-        const storeButtonsContainer = document.getElementById("store-buttons");
+    function getSunburnInfo(min){
+      if(min===null||min===0)return{label:'データなし',color:'#5A7499'};
+      if(min<=20)return{label:'要注意',color:'#FF4444'};
+      if(min<=40)return{label:'やや注意',color:'#FFB84D'};
+      return{label:'比較的安全',color:'#4CD964'};
+    }
 
-        if (isIOS) {
-          playStoreBtn.className = "store-link";
-          storeButtonsContainer.appendChild(playStoreBtn);
-        } else if (isAndroid) {
-          appStoreBtn.className = "store-link";
-          storeButtonsContainer.insertBefore(playStoreBtn, appStoreBtn);
-        }
+    function parseMin(v){
+      if(v==='-'||v===''||v==='欠測')return null;
+      if(v==='0')return 0;
+      if(v==='6000+')return 6000;
+      const n=parseFloat(v);return isNaN(n)?null:n;
+    }
 
-        const qrCode = new QRCodeStyling({
-          width: 400,
-          height: 400,
-          data: deepLink,
-          dotsOptions: {
-            color: "#333333",
-            type: "rounded",
-          },
-          backgroundOptions: {
-            color: "#ffffff",
-          },
-          cornersSquareOptions: {
-            type: "extra-rounded",
-          },
-          cornersDotOptions: {
-            type: "dot",
-          },
-          qrOptions: {
-            errorCorrectionLevel: "H",
-          },
+    function renderChips(){
+      const c=document.getElementById('stationChips');
+      c.innerHTML=STATIONS.map(s=>`<div class="chip${s.id===selectedStation?' active':''}" onclick="selectStation('${s.id}')"><div class="chip-name">${s.name}</div><div class="chip-pref">${s.pref}</div></div>`).join('');
+    }
+
+    function updateStationInfo(){
+      const s=STATIONS.find(s=>s.id===selectedStation);
+      if(s)document.getElementById('stationInfo').innerHTML=`<span style="color:var(--primary);font-size:20px">📍</span><span class="station-name">${s.name}局</span><span class="station-pref">${s.pref}</span>`;
+      const btn=document.getElementById('favBtn');
+      btn.textContent=favoriteStation===selectedStation?'★':'☆';
+      btn.className='fav-btn'+(favoriteStation===selectedStation?' active':'');
+    }
+
+    function selectStation(id){
+      selectedStation=id;
+      localStorage.setItem('uv_station',id);
+      renderChips();
+      updateStationInfo();
+      fetchData();
+    }
+
+    function toggleFavorite(){
+      if(favoriteStation===selectedStation){
+        favoriteStation=null;
+        localStorage.removeItem('uv_favorite');
+      }else{
+        favoriteStation=selectedStation;
+        localStorage.setItem('uv_favorite',selectedStation);
+      }
+      updateStationInfo();
+    }
+
+    function setExposure(type){
+      exposureType=type;
+      document.querySelectorAll('.toggle-btn').forEach(b=>{
+        b.classList.toggle('active',b.dataset.type===type);
+      });
+      if(currentData)renderData(currentData);
+    }
+
+    function setPageBackground(gradColors){
+      document.body.style.background=`linear-gradient(135deg,${gradColors[0]},${gradColors[1]},${gradColors[2]})`;
+    }
+
+    async function fetchData(){
+      const container=document.getElementById('dataContainer');
+      container.innerHTML='<div class="loading"><div class="spinner"></div><div class="loading-text">データを取得中...</div></div>';
+      try{
+        const res=await fetch(`/api/uv-data/${selectedStation}`);
+        if(!res.ok)throw new Error('API error');
+        currentData=await res.json();
+        renderData(currentData);
+      }catch(e){
+        container.innerHTML=`<div class="error-box"><div class="error-icon">⚠️</div><div class="error-text">データの取得に失敗しました</div><button class="retry-btn" onclick="fetchData()">🔄 再試行</button></div>`;
+        setPageBackground(['#0D1A30','#0B1525','#0A1628']);
+      }
+    }
+
+    function renderData(data){
+      const raw=exposureType==='faceHands'?data.faceHands.recommendedMinutes:data.armsLegs.recommendedMinutes;
+      const recMin=parseMin(raw);
+      const maxRaw=data.sunburn.maxMinutes;
+      const maxMin=parseMin(maxRaw);
+      const lv=getLevelInfo(recMin);
+      const sb=getSunburnInfo(maxMin);
+      const dispRec=recMin!==null&&recMin>0?recMin:'-';
+      const dispMax=maxMin!==null&&maxMin>0?maxMin:'-';
+      const recUnit=recMin!==null&&recMin>0?`<span class="minutes-unit" style="color:${lv.color}99">分</span>`:'';
+      const maxUnit=maxMin!==null&&maxMin>0?`<span class="minutes-unit" style="color:${sb.color}99">分</span>`:'';
+
+      setPageBackground(lv.grad);
+
+      let extraHtml='';
+      if(data.cie!=='NA'&&data.ivd!=='NA'){
+        extraHtml=`<div class="extra-row"><div class="extra-item"><div class="extra-label">紅斑紫外線量</div><div class="extra-val">${data.cie} W/m²</div></div><div class="extra-div"></div><div class="extra-item"><div class="extra-label">ビタミンD紫外線量</div><div class="extra-val">${data.ivd} W/m²</div></div></div>`;
+      }
+
+      document.getElementById('dataContainer').innerHTML=`
+        <div class="card">
+          <div class="card-bg" style="background:linear-gradient(135deg,${lv.grad[0]},${lv.grad[1]},${lv.grad[2]})"></div>
+          <div class="accent-bar" style="background:${lv.color}"></div>
+          <div class="card-content">
+            <div class="card-header">
+              <div class="card-meta">📅 ${data.date}</div>
+              <div class="card-meta">🕐 ${data.timeSlot}</div>
+            </div>
+            <div class="main-data">
+              <div class="data-col">
+                <div class="icon-circle" style="background:${lv.color}30">${lv.icon}</div>
+                <div class="section-label">ビタミンD生成</div>
+                <div class="section-sub">必要な照射時間</div>
+                <div class="minutes-row"><span class="minutes-val" style="color:${lv.color}">${dispRec}</span>${recUnit}</div>
+                <div class="level-badge" style="background:${lv.color}20;color:${lv.color}">${lv.label}</div>
+              </div>
+              <div class="divider"></div>
+              <div class="data-col">
+                <div class="icon-circle" style="background:${sb.color}20">🛡️</div>
+                <div class="section-label">紅斑 (日焼け)</div>
+                <div class="section-sub">この時間以上は避けて</div>
+                <div class="minutes-row"><span class="minutes-val" style="color:${sb.color}">${dispMax}</span>${maxUnit}</div>
+                <div class="level-badge" style="background:${sb.color}20;color:${sb.color}">${sb.label}</div>
+              </div>
+            </div>
+            ${extraHtml}
+          </div>
+        </div>`;
+    }
+
+    if('serviceWorker' in navigator){
+      window.addEventListener('load',()=>{
+        navigator.serviceWorker.register('/sw.js').catch(()=>{});
+      });
+    }
+
+    window.addEventListener('beforeinstallprompt',(e)=>{
+      e.preventDefault();
+      deferredPrompt=e;
+      if(!localStorage.getItem('pwa_dismissed')){
+        document.getElementById('installBanner').classList.add('show');
+      }
+    });
+
+    function installPWA(){
+      if(deferredPrompt){
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(()=>{
+          deferredPrompt=null;
+          document.getElementById('installBanner').classList.remove('show');
         });
+      }
+    }
 
-        qrCode.append(document.getElementById("qr-code"));
+    function dismissInstall(){
+      document.getElementById('installBanner').classList.remove('show');
+      localStorage.setItem('pwa_dismissed','1');
+    }
 
-        if (isAndroid || isIOS) {
-          loadingEl.style.display = "block";
-          contentEl.style.display = "none";
-          window.location.href = deepLink;
-          setTimeout(function () {
-            loadingEl.style.display = "none";
-            contentEl.style.display = "block";
-          }, 500);
-        }
-      })();
+    if(favoriteStation){selectedStation=favoriteStation;}
+    renderChips();
+    updateStationInfo();
+    fetchData();
+    setInterval(fetchData,5*60*1000);
     </script>
   </body>
 </html>

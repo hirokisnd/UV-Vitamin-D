@@ -172,6 +172,22 @@ function configureExpoAndLanding(app: express.Application) {
 
   log("Serving static Expo files with dynamic manifest routing");
 
+  const publicDir = path.resolve(process.cwd(), "server", "public");
+
+  app.get("/manifest.json", (_req: Request, res: Response) => {
+    res.sendFile(path.join(publicDir, "manifest.json"));
+  });
+
+  app.get("/sw.js", (_req: Request, res: Response) => {
+    res.setHeader("Content-Type", "text/javascript");
+    res.sendFile(path.join(publicDir, "sw.js"));
+  });
+
+  app.use("/pwa-icons", express.static(path.join(publicDir, "pwa-icons")));
+  app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
+  app.use(express.static(publicDir));
+  app.use(express.static(path.resolve(process.cwd(), "static-build")));
+
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith("/api")) {
       return next();
@@ -197,9 +213,6 @@ function configureExpoAndLanding(app: express.Application) {
 
     next();
   });
-
-  app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
-  app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
