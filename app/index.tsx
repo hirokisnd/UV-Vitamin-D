@@ -67,25 +67,82 @@ async function fetchUVData(stationId: string): Promise<UVResponse> {
 }
 
 function parseMinutes(val: string): number | null {
-  if (val === "-" || val === "" || val === "欠測" || val === "0") return null;
+  if (val === "-" || val === "" || val === "欠測") return null;
+  if (val === "0") return 0;
   if (val === "6000+") return 6000;
   const num = parseFloat(val);
   return isNaN(num) ? null : num;
 }
 
-function getVitDLevel(minutes: number | null): { label: string; color: string; iconName: string } {
-  if (minutes === null) return { label: "データなし", color: Colors.textMuted, iconName: "cloud-outline" };
-  if (minutes <= 10) return { label: "短時間でOK", color: Colors.success, iconName: "sunny" };
-  if (minutes <= 30) return { label: "適度な日光浴を", color: Colors.primary, iconName: "partly-sunny" };
-  if (minutes <= 60) return { label: "やや長めに", color: Colors.warning, iconName: "cloudy" };
-  return { label: "60分以上必要", color: Colors.textMuted, iconName: "cloud-outline" };
+type UVLevel = "none" | "strong" | "moderate" | "weak" | "veryWeak";
+
+function getUVLevelCategory(recMinutes: number | null): UVLevel {
+  if (recMinutes === null || recMinutes === 0) return "none";
+  if (recMinutes <= 10) return "strong";
+  if (recMinutes <= 30) return "moderate";
+  if (recMinutes <= 60) return "weak";
+  return "veryWeak";
+}
+
+interface LevelStyle {
+  label: string;
+  color: string;
+  iconName: string;
+  gradientColors: [string, string, string];
+  bgOpacity: string;
+}
+
+function getVitDLevelStyle(level: UVLevel): LevelStyle {
+  switch (level) {
+    case "strong":
+      return {
+        label: "短時間でOK",
+        color: "#4CD964",
+        iconName: "sunny",
+        gradientColors: ["#1A3D1A", "#0F2B1A", "#0A1628"],
+        bgOpacity: "30",
+      };
+    case "moderate":
+      return {
+        label: "適度な日光浴を",
+        color: "#F5A623",
+        iconName: "partly-sunny",
+        gradientColors: ["#3D2E0A", "#2B1F0A", "#0A1628"],
+        bgOpacity: "25",
+      };
+    case "weak":
+      return {
+        label: "やや長めに",
+        color: "#FFB84D",
+        iconName: "cloudy",
+        gradientColors: ["#3D3520", "#2B2510", "#0A1628"],
+        bgOpacity: "20",
+      };
+    case "veryWeak":
+      return {
+        label: "60分以上必要",
+        color: "#8BA4C7",
+        iconName: "cloud-outline",
+        gradientColors: ["#1A2540", "#152035", "#0A1628"],
+        bgOpacity: "15",
+      };
+    case "none":
+    default:
+      return {
+        label: "データなし",
+        color: "#5A7499",
+        iconName: "moon-outline",
+        gradientColors: ["#0D1A30", "#0B1525", "#0A1628"],
+        bgOpacity: "10",
+      };
+  }
 }
 
 function getSunburnLevel(minutes: number | null): { label: string; color: string } {
-  if (minutes === null) return { label: "データなし", color: Colors.textMuted };
-  if (minutes <= 20) return { label: "要注意", color: Colors.danger };
-  if (minutes <= 40) return { label: "やや注意", color: Colors.warning };
-  return { label: "比較的安全", color: Colors.success };
+  if (minutes === null || minutes === 0) return { label: "データなし", color: Colors.textMuted };
+  if (minutes <= 20) return { label: "要注意", color: "#FF4444" };
+  if (minutes <= 40) return { label: "やや注意", color: "#FFB84D" };
+  return { label: "比較的安全", color: "#4CD964" };
 }
 
 function StationSelector({
@@ -219,99 +276,120 @@ function DataCard({
 
   const recMinutes = parseMinutes(recRaw);
   const maxMinutes = parseMinutes(maxRaw);
-  const vitDLevel = getVitDLevel(recMinutes);
+  const uvLevel = getUVLevelCategory(recMinutes);
+  const vitDStyle = getVitDLevelStyle(uvLevel);
   const sunburnLevel = getSunburnLevel(maxMinutes);
 
-  const displayRec = recMinutes !== null ? `${recMinutes}` : "-";
-  const displayMax = maxMinutes !== null ? `${maxMinutes}` : "-";
+  const displayRec = recMinutes !== null && recMinutes > 0 ? `${recMinutes}` : "-";
+  const displayMax = maxMinutes !== null && maxMinutes > 0 ? `${maxMinutes}` : "-";
 
   return (
-    <View style={cardStyles.container}>
-      <View style={cardStyles.header}>
-        <View style={cardStyles.dateRow}>
-          <Feather name="calendar" size={14} color={Colors.textSecondary} />
-          <Text style={cardStyles.dateText}>{data.date}</Text>
+    <View style={cardStyles.outerContainer}>
+      <LinearGradient
+        colors={vitDStyle.gradientColors}
+        style={cardStyles.gradientBg}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      <View style={[cardStyles.accentBar, { backgroundColor: vitDStyle.color }]} />
+
+      <View style={cardStyles.innerContent}>
+        <View style={cardStyles.header}>
+          <View style={cardStyles.dateRow}>
+            <Feather name="calendar" size={14} color={Colors.textSecondary} />
+            <Text style={cardStyles.dateText}>{data.date}</Text>
+          </View>
+          <View style={cardStyles.timeRow}>
+            <Feather name="clock" size={14} color={Colors.textSecondary} />
+            <Text style={cardStyles.timeText}>{data.timeSlot}</Text>
+          </View>
         </View>
-        <View style={cardStyles.timeRow}>
-          <Feather name="clock" size={14} color={Colors.textSecondary} />
-          <Text style={cardStyles.timeText}>{data.timeSlot}</Text>
+
+        <View style={cardStyles.mainDataSection}>
+          <View style={cardStyles.dataColumn}>
+            <View style={[cardStyles.iconCircle, { backgroundColor: vitDStyle.color + vitDStyle.bgOpacity }]}>
+              <Ionicons
+                name={vitDStyle.iconName as any}
+                size={28}
+                color={vitDStyle.color}
+              />
+            </View>
+            <Text style={cardStyles.sectionLabel}>ビタミンD生成</Text>
+            <Text style={cardStyles.sectionSubLabel}>必要な照射時間</Text>
+            <View style={cardStyles.minutesRow}>
+              <Text style={[cardStyles.minutesValue, { color: vitDStyle.color }]}>
+                {displayRec}
+              </Text>
+              {recMinutes !== null && recMinutes > 0 && (
+                <Text style={[cardStyles.minutesUnit, { color: vitDStyle.color + "99" }]}>分</Text>
+              )}
+            </View>
+            <View style={[cardStyles.levelBadge, { backgroundColor: vitDStyle.color + "20" }]}>
+              <Text style={[cardStyles.levelText, { color: vitDStyle.color }]}>
+                {vitDStyle.label}
+              </Text>
+            </View>
+          </View>
+
+          <View style={cardStyles.divider} />
+
+          <View style={cardStyles.dataColumn}>
+            <View style={[cardStyles.iconCircle, { backgroundColor: sunburnLevel.color + "20" }]}>
+              <MaterialCommunityIcons
+                name="shield-sun-outline"
+                size={28}
+                color={sunburnLevel.color}
+              />
+            </View>
+            <Text style={cardStyles.sectionLabel}>紅斑 (日焼け)</Text>
+            <Text style={cardStyles.sectionSubLabel}>この時間以上は避けて</Text>
+            <View style={cardStyles.minutesRow}>
+              <Text style={[cardStyles.minutesValue, { color: sunburnLevel.color }]}>
+                {displayMax}
+              </Text>
+              {maxMinutes !== null && maxMinutes > 0 && (
+                <Text style={[cardStyles.minutesUnit, { color: sunburnLevel.color + "99" }]}>分</Text>
+              )}
+            </View>
+            <View style={[cardStyles.levelBadge, { backgroundColor: sunburnLevel.color + "20" }]}>
+              <Text style={[cardStyles.levelText, { color: sunburnLevel.color }]}>
+                {sunburnLevel.label}
+              </Text>
+            </View>
+          </View>
         </View>
+
+        {data.cie !== "NA" && data.ivd !== "NA" && (
+          <View style={cardStyles.extraDataRow}>
+            <View style={cardStyles.extraDataItem}>
+              <Text style={cardStyles.extraDataLabel}>紅斑紫外線量</Text>
+              <Text style={cardStyles.extraDataValue}>{data.cie} W/m²</Text>
+            </View>
+            <View style={cardStyles.extraDataDivider} />
+            <View style={cardStyles.extraDataItem}>
+              <Text style={cardStyles.extraDataLabel}>ビタミンD紫外線量</Text>
+              <Text style={cardStyles.extraDataValue}>{data.ivd} W/m²</Text>
+            </View>
+          </View>
+        )}
       </View>
-
-      <View style={cardStyles.mainDataSection}>
-        <View style={cardStyles.dataColumn}>
-          <Ionicons
-            name={vitDLevel.iconName as any}
-            size={32}
-            color={vitDLevel.color}
-          />
-          <Text style={cardStyles.sectionLabel}>ビタミンD生成</Text>
-          <Text style={cardStyles.sectionSubLabel}>必要な照射時間</Text>
-          <View style={cardStyles.minutesRow}>
-            <Text style={[cardStyles.minutesValue, { color: vitDLevel.color }]}>
-              {displayRec}
-            </Text>
-            {recMinutes !== null && (
-              <Text style={cardStyles.minutesUnit}>分</Text>
-            )}
-          </View>
-          <View style={[cardStyles.levelBadge, { backgroundColor: vitDLevel.color + "20" }]}>
-            <Text style={[cardStyles.levelText, { color: vitDLevel.color }]}>
-              {vitDLevel.label}
-            </Text>
-          </View>
-        </View>
-
-        <View style={cardStyles.divider} />
-
-        <View style={cardStyles.dataColumn}>
-          <MaterialCommunityIcons
-            name="shield-sun-outline"
-            size={32}
-            color={sunburnLevel.color}
-          />
-          <Text style={cardStyles.sectionLabel}>紅斑 (日焼け)</Text>
-          <Text style={cardStyles.sectionSubLabel}>この時間以上は避けて</Text>
-          <View style={cardStyles.minutesRow}>
-            <Text style={[cardStyles.minutesValue, { color: sunburnLevel.color }]}>
-              {displayMax}
-            </Text>
-            {maxMinutes !== null && (
-              <Text style={cardStyles.minutesUnit}>分</Text>
-            )}
-          </View>
-          <View style={[cardStyles.levelBadge, { backgroundColor: sunburnLevel.color + "20" }]}>
-            <Text style={[cardStyles.levelText, { color: sunburnLevel.color }]}>
-              {sunburnLevel.label}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {data.cie !== "NA" && data.ivd !== "NA" && (
-        <View style={cardStyles.extraDataRow}>
-          <View style={cardStyles.extraDataItem}>
-            <Text style={cardStyles.extraDataLabel}>紅斑紫外線量</Text>
-            <Text style={cardStyles.extraDataValue}>{data.cie} W/m²</Text>
-          </View>
-          <View style={cardStyles.extraDataDivider} />
-          <View style={cardStyles.extraDataItem}>
-            <Text style={cardStyles.extraDataLabel}>ビタミンD紫外線量</Text>
-            <Text style={cardStyles.extraDataValue}>{data.ivd} W/m²</Text>
-          </View>
-        </View>
-      )}
     </View>
   );
 }
 
 function EmptyDataCard() {
   return (
-    <View style={cardStyles.container}>
-      <View style={cardStyles.emptyState}>
-        <Ionicons name="cloud-offline-outline" size={48} color={Colors.textMuted} />
-        <Text style={cardStyles.emptyText}>データを取得できませんでした</Text>
-        <Text style={cardStyles.emptySubtext}>しばらくしてから再試行してください</Text>
+    <View style={cardStyles.outerContainer}>
+      <LinearGradient
+        colors={["#0D1A30", "#0B1525", "#0A1628"]}
+        style={cardStyles.gradientBg}
+      />
+      <View style={cardStyles.innerContent}>
+        <View style={cardStyles.emptyState}>
+          <Ionicons name="cloud-offline-outline" size={48} color={Colors.textMuted} />
+          <Text style={cardStyles.emptyText}>データを取得できませんでした</Text>
+          <Text style={cardStyles.emptySubtext}>しばらくしてから再試行してください</Text>
+        </View>
       </View>
     </View>
   );
@@ -364,6 +442,13 @@ export default function HomeScreen() {
 
   const station = STATIONS.find((s) => s.id === selectedStation);
 
+  const recRaw = data
+    ? (exposureType === "faceHands" ? data.faceHands.recommendedMinutes : data.armsLegs.recommendedMinutes)
+    : null;
+  const recMinutes = recRaw ? parseMinutes(recRaw) : null;
+  const uvLevel = getUVLevelCategory(recMinutes);
+  const levelStyle = getVitDLevelStyle(uvLevel);
+
   const toggleFavorite = useCallback(async () => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (favoriteStation === selectedStation) {
@@ -382,8 +467,10 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <StatusBar style="light" />
       <LinearGradient
-        colors={[Colors.gradientStart, Colors.gradientEnd, Colors.backgroundLight]}
+        colors={levelStyle.gradientColors}
         style={StyleSheet.absoluteFill}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
       />
       <ScrollView
         style={styles.scrollView}
@@ -633,13 +720,22 @@ const toggleStyles = StyleSheet.create({
 });
 
 const cardStyles = StyleSheet.create({
-  container: {
-    backgroundColor: Colors.card,
+  outerContainer: {
     borderRadius: 20,
-    padding: 20,
     marginBottom: 16,
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  gradientBg: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  accentBar: {
+    height: 3,
+    width: "100%",
+  },
+  innerContent: {
+    padding: 20,
   },
   header: {
     flexDirection: "row",
@@ -675,6 +771,14 @@ const cardStyles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
+  iconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
   sectionLabel: {
     fontSize: 12,
     fontFamily: "NotoSansJP_700Bold",
@@ -699,7 +803,6 @@ const cardStyles = StyleSheet.create({
   minutesUnit: {
     fontSize: 16,
     fontFamily: "NotoSansJP_500Medium",
-    color: Colors.textSecondary,
   },
   levelBadge: {
     paddingHorizontal: 12,
