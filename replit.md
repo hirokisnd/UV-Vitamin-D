@@ -27,8 +27,8 @@ Preferred communication style: Simple, everyday language.
 - **API Routes**: Defined in `server/routes.ts`. The main endpoint fetches UV data from NIES (Japan's National Institute for Environmental Studies) for specific weather stations
 - **Data Source**: UV data is scraped/fetched from NIES JSON endpoints, not stored locally. The server acts as a proxy/transformer
 - **CORS**: Dynamic CORS configuration supporting Replit domains and localhost for development
-- **Static Serving**: In production, serves a pre-built web landing page from `server/public/` and `server/templates/`
-- **PWA Support**: Includes service worker (`sw.js`), web manifest, and PWA icons for installable web experience
+- **Static Serving**: In production, serves PWA web app from `server/templates/landing-page.html`, static PWA assets from `server/public/` (manifest.json, sw.js, pwa-icons)
+- **PWA Support**: Full PWA with manifest.json, service worker (sw.js), maskable icons (192px, 512px), install banner, and offline caching. Explicit Express routes for `/manifest.json` and `/sw.js` to avoid proxy conflicts. Landing page IS the full web app (not just an Expo Go QR code page)
 - **Storage Layer**: `server/storage.ts` defines an `IStorage` interface with a `MemStorage` implementation (in-memory). Currently only has user CRUD — the UV data is fetched on-demand, not persisted
 
 ### Database Schema (Drizzle ORM)
