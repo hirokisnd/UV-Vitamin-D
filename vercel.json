@@ -2,7 +2,10 @@
   "version": 2,
   "public": true,
   "cleanUrls": true,
+  "outputDirectory": "static-build",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/$1" }
+    { "source": "/android", "destination": "/android/manifest.json" },
+    { "source": "/ios", "destination": "/ios/manifest.json" },
+    { "source": "/", "destination": "/android/manifest.json" }
   ]
 }
