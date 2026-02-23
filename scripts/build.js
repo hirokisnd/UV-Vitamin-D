@@ -117,6 +117,8 @@ async function startMetro(expoPublicDomain) {
   const env = {
     ...process.env,
     EXPO_PUBLIC_DOMAIN: expoPublicDomain,
+    EXPO_SKIP_DEPENDENCY_VALIDATION: "1", // ★これを追加
+    CI: "1"                                // ★これも念のため追加
   };
   metroProcess = spawn("npm", ["run", "expo:start:static:build"], {
     stdio: ["ignore", "pipe", "pipe"],
