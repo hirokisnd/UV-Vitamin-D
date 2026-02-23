@@ -5,7 +5,14 @@
   "outputDirectory": "static-build",
   "rewrites": [
     { "source": "/android", "destination": "/android/manifest.json" },
-    { "source": "/ios", "destination": "/ios/manifest.json" },
-    { "source": "/", "destination": "/android/manifest.json" }
+    { "source": "/ios", "destination": "/ios/manifest.json" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)/manifest.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" }
+      ]
+    }
   ]
 }
