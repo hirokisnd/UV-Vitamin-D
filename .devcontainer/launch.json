@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch API Server",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Launch Expo Server",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npx expo start",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

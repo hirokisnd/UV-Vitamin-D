@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ..:/workspace:cached
+      - node_modules:/workspace/node_modules
+    command: sleep infinity
+    network_mode: service:proxy
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - EXPO_PUBLIC_DOMAIN=localhost:3000
+      - REPLIT_DEV_DOMAIN=localhost:3000
+      - REPLIT_DOMAINS=localhost:3000
+    user: "node"
+    working_dir: /workspace
+    ports:
+      - "3000:3000"
+      - "5000:5000"
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    shm_size: '2gb'
+
+  proxy:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - .devcontainer/nginx.conf:/etc/nginx/nginx.conf
+    command: nginx -g 'daemon off;'
+
+volumes:
+  node_modules:
