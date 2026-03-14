@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "tsx api/index.ts",
-    "build": "echo 'No build step'"
+    "build": "echo 'No build needed'"
   },
   "dependencies": {
     "express": "^5.0.1",
