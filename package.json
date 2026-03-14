@@ -4,14 +4,18 @@
   "scripts": {
     "dev": "node api/index.js",
     "start": "node api/index.js",
-    "vercel-build": "echo 'Vercel build completed'",
-    "vercel-build:api": "echo 'API build completed'"
+    "vercel-build": "echo 'No build needed'",
+    "vercel-build:api": "echo 'No build needed'"
   },
   "dependencies": {
     "express": "^5.0.1",
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "@types/node": "^20.10.4"
+    "@types/node": "^20.10.4",
+    "vercel": "^50.32.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

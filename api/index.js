@@ -55,11 +55,11 @@ setupRequestLogging(app);
 
 const server = registerRoutes(app);
 
-server.listen(
-  process.env.PORT || 3000,
-  () => {
-    log(`API server running on port ${process.env.PORT || 3000}`);
-  }
-);
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3000;
+  server.listen(PORT, () => {
+    log(`API server running on port ${PORT}`);
+  });
+}
 
-module.exports = { app, server };
+module.exports = app;
