@@ -17,7 +17,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { StatusBar } from "expo-status-bar";
 import Colors from "@/constants/colors";
-import { getApiUrl } from "@/lib/query-client";
 import { fetch } from "expo/fetch";
 
 interface StationInfo {
@@ -59,9 +58,8 @@ const STATIONS: StationInfo[] = [
 const FAVORITE_KEY = "uv_favorite_station";
 
 async function fetchUVData(stationId: string): Promise<UVResponse> {
-  const baseUrl = getApiUrl();
-  const url = new URL(`/api/uv-data/${stationId}`, baseUrl);
-  const res = await fetch(url.toString());
+  const url = `/api/uv-data/${stationId}`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch UV data");
   return res.json();
 }
