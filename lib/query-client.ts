@@ -1,22 +1,6 @@
 import { fetch } from "expo/fetch";
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-/**
- * Gets the base URL for the Express API server (e.g., "http://localhost:3000")
- * @returns {string} The API base URL
- */
-export function getApiUrl(): string {
-  const host = process.env.EXPO_PUBLIC_DOMAIN;
-  if (host) {
-    return host.startsWith("http") ? host : `https://${host}`;
-  }
-  // ブラウザ環境であれば今のオリジンを返す
-  if (typeof window !== "undefined") {
-    return window.location.origin;
-  }
-  return "";
-}
-
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
@@ -29,14 +13,15 @@ export async function apiRequest(
   route: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const baseUrl = getApiUrl();
-  // baseUrlがある場合は結合、ない場合(相対パス)はそのままrouteを使う
-  const urlString = baseUrl ? new URL(route, baseUrl).toString() : route;
-  const res = await fetch(urlString, {
+  // route が "/" から始まっていなければ付与する（相対パスの保証）
+  const routePath = route.startsWith("/") ? route : `/${route}`;
+
+  const res = await fetch(routePath, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
+    // Vercel上の同一ドメイン通信なので same-origin に設定
+    credentials: "same-origin",
   });
 
   await throwIfResNotOk(res);
@@ -49,11 +34,11 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const baseUrl = getApiUrl();
-    // baseUrlがある場合は結合、ない場合(相対パス)はそのままrouteを使う
-    const urlString = baseUrl ? new URL(queryKey.join("/") as string, baseUrl).toString() : queryKey.join("/");
-    const res = await fetch(urlString, {
-      credentials: "include",
+    // queryKey から相対パスを生成
+    const routePath = "/" + queryKey.join("/");
+
+    const res = await fetch(routePath, {
+      credentials: "same-origin",
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
