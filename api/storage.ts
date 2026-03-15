@@ -10,7 +10,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
 }
 
-// 開発中やテスト用のメモリ保存（必要なら切り替え可能）
+// 開発中やテスト用のメモリ保存（必要なら切りかえ可能）
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   constructor() { this.users = new Map(); }
@@ -20,7 +20,11 @@ export class MemStorage implements IStorage {
   }
   async createUser(insertUser: InsertUser) {
     const id = randomUUID();
-    const user: User = { id, ...insertUser };
+    const user: User = {
+      id,
+      username: insertUser.username,
+      password: insertUser.password,
+    };
     this.users.set(id, user);
     return user;
   }
@@ -32,7 +36,7 @@ export class PostgresStorage implements IStorage {
 
   constructor() {
     if (!process.env.DATABASE_URL) {
-      throw new Error("DATABASE_URLが設定されていません。VercelのSettingsで追加してください。");
+      throw new Error("データベースURLが設定されていません。VercelのSettingsで追加してください。");
     }
     // postgresドライバを初期化
     const client = postgres(process.env.DATABASE_URL);
@@ -51,7 +55,11 @@ export class PostgresStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user = { id, ...insertUser };
+    const user: User = {
+      id,
+      username: insertUser.username,
+      password: insertUser.password,
+    };
     await this.db.insert(users).values(user);
     return user;
   }

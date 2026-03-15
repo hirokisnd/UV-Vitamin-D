@@ -7,16 +7,13 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
  */
 export function getApiUrl(): string {
   let host = process.env.EXPO_PUBLIC_DOMAIN;
-
   if (!host) {
-    throw new Error("EXPO_PUBLIC_DOMAIN is not set");
+    return ""; // Vercel上(同じドメイン)で動く場合の相対パス用フォールバック
   }
-
   if (host.startsWith("http://") || host.startsWith("https://")) {
-    return new URL(host).href;
+    return host;
   }
-  let url = new URL(`https://${host}`);
-  return url.href;
+  return `https://${host}`;
 }
 
 async function throwIfResNotOk(res: Response) {
