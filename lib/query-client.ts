@@ -6,14 +6,15 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
  * @returns {string} The API base URL
  */
 export function getApiUrl(): string {
-  let host = process.env.EXPO_PUBLIC_DOMAIN;
-  if (!host) {
-    return ""; // Vercel上(同じドメイン)で動く場合の相対パス用フォールバック
+  const host = process.env.EXPO_PUBLIC_DOMAIN;
+  if (host) {
+    return host.startsWith("http") ? host : `https://${host}`;
   }
-  if (host.startsWith("http://") || host.startsWith("https://")) {
-    return host;
+  // ブラウザ環境であれば今のオリジンを返す
+  if (typeof window !== "undefined") {
+    return window.location.origin;
   }
-  return `https://${host}`;
+  return "";
 }
 
 async function throwIfResNotOk(res: Response) {
@@ -29,9 +30,9 @@ export async function apiRequest(
   data?: unknown | undefined,
 ): Promise<Response> {
   const baseUrl = getApiUrl();
-  const url = new URL(route, baseUrl);
-
-  const res = await fetch(url.toString(), {
+  // baseUrlがある場合は結合、ない場合(相対パス)はそのままrouteを使う
+  const urlString = baseUrl ? new URL(route, baseUrl).toString() : route;
+  const res = await fetch(urlString, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
@@ -49,9 +50,9 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const baseUrl = getApiUrl();
-    const url = new URL(queryKey.join("/") as string, baseUrl);
-
-    const res = await fetch(url.toString(), {
+    // baseUrlがある場合は結合、ない場合(相対パス)はそのままrouteを使う
+    const urlString = baseUrl ? new URL(queryKey.join("/") as string, baseUrl).toString() : queryKey.join("/");
+    const res = await fetch(urlString, {
       credentials: "include",
     });
 
