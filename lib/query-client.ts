@@ -31,5 +31,16 @@ export const getQueryFn: <T>(options: { on401: "returnNull" | "throw" }) => Quer
   };
 
 export const queryClient = new QueryClient({
-  defaultOptions: { queries: { queryFn: getQueryFn({ on401: "throw" }), retry: false } },
+  defaultOptions: {
+    queries: {
+      queryFn: getQueryFn({ on401: "throw" }),
+      staleTime: 24 * 60 * 60 * 1000, // 24h
+      gcTime: 5 * 24 * 60 * 60 * 1000, // 5日 (cacheTime → gcTime in v5)
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: false,
+    },
+  },
 });

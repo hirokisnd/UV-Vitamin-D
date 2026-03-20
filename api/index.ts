@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import { registerRoutes } from './routes';
 
@@ -53,7 +54,20 @@ setupBodyParsing(app);
 setupRequestLogging(app);
 
 // ルーティングの登録
-registerRoutes(app);
+const serverPromise = registerRoutes(app);
 
 // Vercel Serverless Functions 用に app をエクスポート
 export default app;
+
+// ローカル開発時のサーバー起動
+if (require.main === module) {
+  serverPromise.then(server => {
+    const PORT = process.env.PORT || 3000;
+    server.listen(PORT, () => {
+      console.log(`Server listening on port ${PORT}`);
+    });
+  }).catch(err => {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  });
+}
