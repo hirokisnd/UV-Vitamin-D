@@ -170,6 +170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         niesRetryConfig
       );
 
+<<<<<<< HEAD
       // 3. Cache write (best-effort, fire-and-forget)
       try {
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -197,6 +198,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         // Do not throw - response data is already fetched
       }
+=======
+      // Save to cache (expires in 24 hours)
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await db.insert(uvDataCache).values({
+        stationId,
+        date: today,
+        rawData: raw,
+        processedData: processed,
+        expiresAt,
+        // fetchedAt is auto-set by defaultNow()
+      }).onConflictDoUpdate({
+        target: [uvDataCache.stationId, uvDataCache.date],
+        set: {
+          rawData: raw,
+          processedData: processed,
+          expiresAt,
+          // fetchedAt: update not supported due to Drizzle type constraints
+        },
+      });
+>>>>>>> ad12491... fix: remove fetchedAt from insert/set to satisfy Drizzle v0.39 type constraints
 
       res.set("X-Cache-Status", "MISS");
       res.set("Cache-Control", "public, max-age=86400");
