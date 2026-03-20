@@ -1,5 +1,9 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "node:http";
+import { eq, gte, and } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { uvDataCache } from "@/shared/schema";
+import { retryAsync, niesRetryConfig, NIESApiError, RetryableError } from "@/lib/retry";
 
 interface StationInfo {
   id: string;
@@ -37,6 +41,19 @@ interface NIESJson {
   day: string;
 }
 
+interface ProcessedUVData {
+  station: StationInfo;
+  date: string;
+  timeSlot: string;
+  timeMin: string;
+  timeMax: string;
+  faceHands: { recommendedMinutes: string; rawValue: string };
+  armsLegs: { recommendedMinutes: string; rawValue: string };
+  sunburn: { maxMinutes: string; rawValue: string };
+  cie: string;
+  ivd: string;
+}
+
 function formatMinutes(val: string): string {
   if (val === "NA") return "欠測";
   const num = Number(val);
@@ -55,55 +72,185 @@ function formatTimeSlot(timeMin: string, timeMax: string): string {
   return `${min}〜${max}時台`;
 }
 
+function processNIESJson(json: NIESJson, station: StationInfo): ProcessedUVData {
+  return {
+    station,
+    date: `${json.year}/${json.month}/${json.day}`,
+    timeSlot: formatTimeSlot(json.time_min, json.time_max),
+    timeMin: json.time_min,
+    timeMax: json.time_max,
+    faceHands: {
+      recommendedMinutes: formatMinutes(json.hlthful1),
+      rawValue: json.hlthful1,
+    },
+    armsLegs: {
+      recommendedMinutes: formatMinutes(json.hlthful2),
+      rawValue: json.hlthful2,
+    },
+    sunburn: {
+      maxMinutes: formatMinutes(json.harmful),
+      rawValue: json.harmful,
+    },
+    cie: json.cie,
+    ivd: json.ivd,
+  };
+}
+
+async function fetchFromNIES(stationId: string): Promise<{ raw: NIESJson; processed: ProcessedUVData }> {
+  const url = `https://db.cger.nies.go.jp/dataset/uv_vitaminD/json/${stationId}.json`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new NIESApiError("Failed to fetch data from NIES", response.status);
+  }
+
+  const json: NIESJson = await response.json();
+  const station = STATIONS.find(s => s.id === stationId);
+  if (!station) {
+    throw new Error("Station not found after successful fetch");
+  }
+  const processed = processNIESJson(json, station);
+  return { raw: json, processed };
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/stations", (_req: Request, res: Response) => {
     res.json(STATIONS);
   });
 
   app.get("/api/uv-data/:stationId", async (req: Request, res: Response) => {
-    const { stationId } = req.params;
+    const stationId = req.params.stationId as string;
 
     const station = STATIONS.find(s => s.id === stationId);
     if (!station) {
       return res.status(404).json({ error: "Station not found" });
     }
 
-    try {
-      const url = `https://db.cger.nies.go.jp/dataset/uv_vitaminD/json/${stationId}.json`;
-      const response = await fetch(url);
+    const today = new Date().toISOString().split("T")[0];
 
-      if (!response.ok) {
-        return res.status(502).json({ error: "Failed to fetch data from NIES" });
+    try {
+      // 1. Try cache first (best-effort, non-critical)
+      let cachedData: ProcessedUVData | null = null;
+      try {
+        const cachedRows = await db
+          .select()
+          .from(uvDataCache)
+          .where(
+            and(
+              eq(uvDataCache.stationId, stationId),
+              eq(uvDataCache.date, today),
+              gte(uvDataCache.expiresAt, new Date())
+            )
+          )
+          .limit(1);
+
+        if (cachedRows.length > 0) {
+          cachedData = cachedRows[0].processedData as ProcessedUVData;
+        }
+      } catch (cacheError) {
+        // Cache failure is non-critical, fall back to NIES API
+        console.error({
+          type: "cache_read_error",
+          stationId,
+          error: cacheError instanceof Error ? cacheError.message : String(cacheError),
+          timestamp: new Date().toISOString(),
+        });
+        // Continue to fetch from NIES
       }
 
-      const json: NIESJson = await response.json();
+      if (cachedData) {
+        res.set("X-Cache-Status", "HIT");
+        res.set("Cache-Control", "public, max-age=86400");
+        return res.json(cachedData);
+      }
 
-      const data = {
-        station,
-        date: `${json.year}/${json.month}/${json.day}`,
-        timeSlot: formatTimeSlot(json.time_min, json.time_max),
-        timeMin: json.time_min,
-        timeMax: json.time_max,
-        faceHands: {
-          recommendedMinutes: formatMinutes(json.hlthful1),
-          rawValue: json.hlthful1,
+      // 2. Cache miss or cache read failed → Fetch from NIES with retry (critical path)
+      const { raw, processed } = await retryAsync(
+        () => fetchFromNIES(stationId),
+        niesRetryConfig
+      );
+
+<<<<<<< HEAD
+      // 3. Cache write (best-effort, fire-and-forget)
+      try {
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await db.insert(uvDataCache).values({
+          stationId,
+          date: today,
+          rawData: raw,
+          processedData: processed,
+          expiresAt,
+        }).onConflictDoUpdate({
+          target: [uvDataCache.stationId, uvDataCache.date],
+          set: {
+            rawData: raw,
+            processedData: processed,
+            expiresAt,
+          },
+        });
+      } catch (cacheWriteError) {
+        // Cache write failure is non-critical, log and continue
+        console.error({
+          type: "cache_write_error",
+          stationId,
+          error: cacheWriteError instanceof Error ? cacheWriteError.message : String(cacheWriteError),
+          timestamp: new Date().toISOString(),
+        });
+        // Do not throw - response data is already fetched
+      }
+=======
+      // Save to cache (expires in 24 hours)
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await db.insert(uvDataCache).values({
+        stationId,
+        date: today,
+        rawData: raw,
+        processedData: processed,
+        expiresAt,
+        // fetchedAt is auto-set by defaultNow()
+      }).onConflictDoUpdate({
+        target: [uvDataCache.stationId, uvDataCache.date],
+        set: {
+          rawData: raw,
+          processedData: processed,
+          expiresAt,
+          // fetchedAt: update not supported due to Drizzle type constraints
         },
-        armsLegs: {
-          recommendedMinutes: formatMinutes(json.hlthful2),
-          rawValue: json.hlthful2,
-        },
-        sunburn: {
-          maxMinutes: formatMinutes(json.harmful),
-          rawValue: json.harmful,
-        },
-        cie: json.cie,
-        ivd: json.ivd,
+      });
+>>>>>>> ad12491... fix: remove fetchedAt from insert/set to satisfy Drizzle v0.39 type constraints
+
+      res.set("X-Cache-Status", "MISS");
+      res.set("Cache-Control", "public, max-age=86400");
+      res.json(processed);
+    } catch (error) {
+      let status = 500;
+      const logFields: any = {
+        type: "uv_data_error",
+        stationId,
+        timestamp: new Date().toISOString(),
       };
 
-      res.json(data);
-    } catch (error) {
-      console.error(`Error fetching data for ${stationId}:`, error);
-      res.status(500).json({ error: "Internal server error" });
+      if (error instanceof NIESApiError) {
+        status = error.statusCode >= 500 ? 502 : error.statusCode;
+        logFields.message = `NIES API error: ${error.message}`;
+        logFields.statusCode = error.statusCode;
+      } else if (error instanceof RetryableError) {
+        status = 502;
+        logFields.message = `Retry failed: ${error.message}`;
+        logFields.attempt = error.attempt;
+      } else if (error instanceof Error) {
+        logFields.message = error.message;
+        logFields.errorName = error.name;
+        status = 500;
+      } else {
+        logFields.message = "Unknown error";
+        status = 500;
+      }
+
+      logFields.statusCode = status;
+      console.error(JSON.stringify(logFields));
+
+      res.status(status).json({ error: "Failed to fetch UV data" });
     }
   });
 
