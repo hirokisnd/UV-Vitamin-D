@@ -162,14 +162,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rawData: raw,
         processedData: processed,
         expiresAt,
-        fetchedAt: new Date(),
+        // fetchedAt is auto-set by defaultNow()
       }).onConflictDoUpdate({
         target: [uvDataCache.stationId, uvDataCache.date],
         set: {
           rawData: raw,
           processedData: processed,
           expiresAt,
-          fetchedAt: new Date(),
+          // fetchedAt: update not supported due to Drizzle type constraints
         },
       });
 
