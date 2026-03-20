@@ -129,49 +129,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const today = new Date().toISOString().split("T")[0];
 
     try {
-      // Check cache first
-      const cached = await db
-        .select()
-        .from(uvDataCache)
-        .where(
-          and(
-            eq(uvDataCache.stationId, stationId),
-            eq(uvDataCache.date, today),
-            gte(uvDataCache.expiresAt, new Date())
+      // 1. Try cache first (best-effort, non-critical)
+      let cachedData: ProcessedUVData | null = null;
+      try {
+        const cachedRows = await db
+          .select()
+          .from(uvDataCache)
+          .where(
+            and(
+              eq(uvDataCache.stationId, stationId),
+              eq(uvDataCache.date, today),
+              gte(uvDataCache.expiresAt, new Date())
+            )
           )
-        )
-        .limit(1);
+          .limit(1);
 
-      if (cached.length > 0) {
-        res.set("X-Cache-Status", "HIT");
-        res.set("Cache-Control", "public, max-age=86400");
-        return res.json(cached[0].processedData);
+        if (cachedRows.length > 0) {
+          cachedData = cachedRows[0].processedData as ProcessedUVData;
+        }
+      } catch (cacheError) {
+        // Cache failure is non-critical, fall back to NIES API
+        console.error({
+          type: "cache_read_error",
+          stationId,
+          error: cacheError instanceof Error ? cacheError.message : String(cacheError),
+          timestamp: new Date().toISOString(),
+        });
+        // Continue to fetch from NIES
       }
 
-      // Cache miss: fetch from NIES with retry
+      if (cachedData) {
+        res.set("X-Cache-Status", "HIT");
+        res.set("Cache-Control", "public, max-age=86400");
+        return res.json(cachedData);
+      }
+
+      // 2. Cache miss or cache read failed → Fetch from NIES with retry (critical path)
       const { raw, processed } = await retryAsync(
         () => fetchFromNIES(stationId),
         niesRetryConfig
       );
 
-      // Save to cache (expires in 24 hours)
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await db.insert(uvDataCache).values({
-        stationId,
-        date: today,
-        rawData: raw,
-        processedData: processed,
-        expiresAt,
-        // fetchedAt is auto-set by defaultNow()
-      }).onConflictDoUpdate({
-        target: [uvDataCache.stationId, uvDataCache.date],
-        set: {
+      // 3. Cache write (best-effort, fire-and-forget)
+      try {
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await db.insert(uvDataCache).values({
+          stationId,
+          date: today,
           rawData: raw,
           processedData: processed,
           expiresAt,
-          // fetchedAt: update not supported due to Drizzle type constraints
-        },
-      });
+        }).onConflictDoUpdate({
+          target: [uvDataCache.stationId, uvDataCache.date],
+          set: {
+            rawData: raw,
+            processedData: processed,
+            expiresAt,
+          },
+        });
+      } catch (cacheWriteError) {
+        // Cache write failure is non-critical, log and continue
+        console.error({
+          type: "cache_write_error",
+          stationId,
+          error: cacheWriteError instanceof Error ? cacheWriteError.message : String(cacheWriteError),
+          timestamp: new Date().toISOString(),
+        });
+        // Do not throw - response data is already fetched
+      }
 
       res.set("X-Cache-Status", "MISS");
       res.set("Cache-Control", "public, max-age=86400");
